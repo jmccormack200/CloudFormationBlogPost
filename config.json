@@ -1,0 +1,21 @@
+{
+  "DbName":"RestTestDB",
+  "ApiName":"TestinThisOut",
+  "functions" : [
+    {
+      "function":"FetchUsers.py",
+      "api_path":"users",
+      "method":"GET"
+    },
+    {
+      "function":"CreateUserBasic.py",
+      "api_path":"users",
+      "method":"POST"
+    },
+    {
+      "function":"PickLockUrl.py",
+      "api_path":"pick/{victim}",
+      "method":"POST"
+    }
+  ]
+}

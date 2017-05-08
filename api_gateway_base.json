@@ -1,0 +1,28 @@
+{
+  "RestApi": {
+    "Type": "AWS::ApiGateway::RestApi",
+    "Properties": {
+      "Name": "APIName"
+    }
+  },
+  "DB":{
+    "Type" : "AWS::DynamoDB::Table",
+    "Properties" : {
+      "AttributeDefinitions" : [
+        {
+          "AttributeName" : "UserId",
+          "AttributeType" : "S"
+        }],
+      "KeySchema" : [
+        {
+          "AttributeName" : "UserId",
+          "KeyType" : "HASH"
+        }],
+        "ProvisionedThroughput" : {
+          "ReadCapacityUnits" : "1",
+          "WriteCapacityUnits" : "1"
+        },
+      "TableName" : "RestDB"
+    }
+  }
+}

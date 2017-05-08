@@ -1,0 +1,54 @@
+{
+   "Permission": {
+      "DependsOn": "RestApi",
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+         "Action": "lambda:InvokeFunction",
+         "FunctionName": "FetchUsersCLOUDFORM",
+         "Principal": "apigateway.amazonaws.com",
+         "SourceArn": "CHANGE"
+      }
+   },
+   "Resource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+         "RestApiId": {
+            "Ref": "RestApi"
+         },
+         "ParentId": {
+            "Fn::GetAtt": [
+               "RestApi",
+               "RootResourceId"
+            ]
+         },
+         "PathPart": "users"
+      }
+   },
+   "Method": {
+      "Type": "AWS::ApiGateway::Method",
+      "DependsOn": [
+         "CHANGE"
+      ],
+      "Properties": {
+         "RestApiId": "CHANGE",
+         "ResourceId": "CHANGE",
+         "HttpMethod": "GET",
+         "AuthorizationType": "NONE",
+         "MethodResponses": [
+            {
+               "StatusCode": 200
+            }
+         ],
+         "Integration": {
+            "Type": "AWS",
+            "IntegrationHttpMethod": "POST",
+            "Uri": "CHANGE",
+            "IntegrationResponses": [
+               {
+                  "StatusCode": 200
+               }
+            ]
+         }
+      }
+   }
+}
