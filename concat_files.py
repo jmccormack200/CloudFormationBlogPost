@@ -1,91 +1,122 @@
-from os import listdir
 import json
 import re
 from copy import deepcopy
-import random
 
-pythonFiles = [];
 PERMISSION = 'Permission'
 RESOURCE = 'Resource'
 METHOD = 'Method'
 
-SOURCE_ARN = {"Fn::Join" : ["", ["arn:aws:execute-api:", { "Ref" : "AWS::Region"}, ":", { "Ref" : "AWS::AccountId"}, ":", { "Ref" : "RestApi" }, "/*"]]}
-REST_API_ID = {"Ref" : "RestApi"}
-LAMBDA_PERMISSION_ARN = {"Fn::Join" : ["", ["arn:aws:iam::", { "Ref" : "AWS::AccountId"}, ":role/pickPocketWriteAndSNS"]]}
+SOURCE_ARN = {"Fn::Join": ["", ["arn:aws:execute-api:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":",
+                                {"Ref": "RestApi"}, "/*"]]}
+REST_API_ID = {"Ref": "RestApi"}
+LAMBDA_PERMISSION_NAME = "LambdaRole"
+LAMBDA_PERMISSION_ARN = {"Fn::Join": ["", ["arn:aws:iam::", {"Ref": "AWS::AccountId"}, ":role/", {"Ref": LAMBDA_PERMISSION_NAME}]]}
 
-with open('config.json') as configFile:
-    configJson = json.load(configFile)
 
-parentyaml = {}
-jsonOut = {}
-resourcePaths = []
-resourcePathExists = False
+class CloudFormationCreator:
+    def __init__(self):
+        self.json_out = {}
+        self.parent_json = {}
+        self.resource_paths = []
+        self.resource_path_exists = False
 
-for config in configJson['functions']:
-    with open('deploy_template.json') as templateFile:
-        with open('api_gateway_template.json') as apiTemplateFile:
-            functionName = config['function'].replace(".py", "") + "CLOUDFORM"
+    def create_json(self):
+        with open('config.json') as configFile:
+            config_json = json.load(configFile)
 
-            tempJSON = json.load(templateFile)
-            apiTemplateJSON = json.load(apiTemplateFile)
+        for config in config_json['functions']:
+            with open('templates/lambda_template.json') as templateFile:
+                with open('templates/api_gateway_template.json') as apiTemplateFile:
+                    function_name = config['function'].replace(".py", "") + "CLOUDFORM"
 
-            jsonOut[functionName] = tempJSON['FunctionName']
+                    temp_json = json.load(templateFile)
+                    api_template_json = json.load(apiTemplateFile)
 
-            # Create Function
-            propJson = jsonOut[functionName]["Properties"]
-            codeJson = propJson["Code"]
-            with open(config['function']) as pythonFile:
-                codeJson['ZipFile'] = pythonFile.read()
-            propJson['FunctionName'] = functionName
-            propJson['Role'] = LAMBDA_PERMISSION_ARN
+                    self.json_out[function_name] = temp_json['FunctionName']
 
-            # Add Permission
-            permissionTemplate = apiTemplateJSON[PERMISSION]
-            permissionName = PERMISSION + functionName
-            jsonOut[permissionName] = permissionTemplate
-            jsonOut[permissionName]['DependsOn'] = functionName
-            jsonOut[permissionName]['Properties']['FunctionName'] = functionName
-            jsonOut[permissionName]['Properties']['SourceArn'] = SOURCE_ARN
+                    # Create Function
+                    self.create_function(function_name, config)
+                    # Add Permission
+                    permission_name = self.create_permission(function_name, api_template_json)
+                    # Add Resource
+                    resource_name = self.create_resource(function_name, api_template_json, config)
+                    # Add Method
+                    self.create_method(function_name, api_template_json, config, resource_name, permission_name)
 
-            # Add Resource
-            paths = config['api_path'].split("/")
-            for path in paths:
-                if (path not in resourcePaths):
-                    resourceTemplate = apiTemplateJSON[RESOURCE]
-                    namePath = re.sub(r'\W+', '', path)
-                    resourceName = RESOURCE + functionName + namePath
-                    jsonOut[resourceName] = deepcopy(resourceTemplate)
-                    jsonOut[resourceName]['DependsOn'] = functionName
-                    jsonOut[resourceName]['Properties']['PathPart'] = path
-                    resourcePaths.append(path)
-                    resourcePathExists = False
-                else:
-                    # If the resource path is a repeat then we don't need to make two
-                    resourcePathExists = True
+        with open("deploy.json", "a") as f:
+            with open("templates/api_gateway_base.json") as baseTemplateFile:
+                base_template_json = json.load(baseTemplateFile)
+                # TODO pull RestApi name from config file.
+                api = base_template_json['RestApi']
+                api['Properties']['Name'] = config_json['ApiName']
+                self.json_out['RestApi'] = api
 
-            # Add Method
-            methodTemplate = apiTemplateJSON[METHOD]
-            methodName = METHOD + functionName
-            jsonOut[methodName] = methodTemplate
-            methodUri = { "Fn::Join" : ["", ["arn:aws:apigateway", ":", { "Ref" : "AWS::Region" }, ":","lambda:path/2015-03-31/functions/arn:aws:lambda", ":", { "Ref" : "AWS::Region" }, ":", { "Ref" : "AWS::AccountId" }, ":function:", functionName, "/invocations"]]}
-            jsonOut[methodName]['Properties']['Integration']['Uri'] = methodUri
-            jsonOut[methodName]['Properties']['RestApiId'] = REST_API_ID
-            jsonOut[methodName]['Properties']['ResourceId'] = { "Ref": resourceName}
-            if (resourcePathExists):
-                jsonOut[methodName]['DependsOn'] = [functionName, permissionName]
+                db = base_template_json['DB']
+                db['Properties']['TableName'] = config_json['DbName']
+                self.json_out['DB'] = db
+
+                lambdaRole = base_template_json[LAMBDA_PERMISSION_NAME]
+                self.json_out[LAMBDA_PERMISSION_NAME] = lambdaRole
+
+                self.parent_json['Resources'] = self.json_out
+                json.dump(self.parent_json, f, indent=4, sort_keys=True)
+
+    def create_function(self, function_name, config):
+        prop_json = self.json_out[function_name]["Properties"]
+        self.json_out[function_name]['DependsOn'] = LAMBDA_PERMISSION_NAME
+        code_json = prop_json["Code"]
+        with open("lambdas/" + config['function']) as pythonFile:
+            code_json['ZipFile'] = pythonFile.read()
+            prop_json['FunctionName'] = function_name
+            prop_json['Role'] = LAMBDA_PERMISSION_ARN
+
+    def create_permission(self, function_name, api_template_json):
+        permission_template = api_template_json[PERMISSION]
+        permission_name = PERMISSION + function_name
+        self.json_out[permission_name] = permission_template
+        self.json_out[permission_name]['DependsOn'] = function_name
+        self.json_out[permission_name]['Properties']['FunctionName'] = function_name
+        self.json_out[permission_name]['Properties']['SourceArn'] = SOURCE_ARN
+        return permission_name
+
+    def create_resource(self, function_name, api_template_json, config):
+        paths = config['api_path'].split("/")
+        for path in paths:
+
+            name_path = re.sub(r'\W+', '', path)
+            resource_name = RESOURCE + name_path
+
+            if path not in self.resource_paths:
+                resource_template = api_template_json[RESOURCE]
+                self.json_out[resource_name] = deepcopy(resource_template)
+                self.json_out[resource_name]['DependsOn'] = function_name
+                self.json_out[resource_name]['Properties']['PathPart'] = path
+                self.resource_paths.append(path)
+                self.resource_path_exists = False
+
             else:
-                jsonOut[methodName]['DependsOn'] = [functionName, resourceName, permissionName]
-            jsonOut[methodName]['Properties']['HttpMethod'] = config['method']
+                # If the resource path is a repeat then we don't need to make two
+                self.resource_path_exists = True
+            return resource_name
 
-with open("deploy.json", "a") as f:
-    with open("api_gateway_base.json") as baseTemplateFile:
-        baseTemplateJSON = json.load(baseTemplateFile)
-        # TODO pull RestApi name from config file.
-        api = baseTemplateJSON['RestApi']
-        api['Properties']['Name'] = configJson['ApiName']
-        jsonOut['RestApi'] = api
-        db = baseTemplateJSON['DB']
-        db['Properties']['TableName'] = configJson['DbName']
-        jsonOut['DB'] = db
-        parentyaml['Resources'] = jsonOut
-        json.dump(parentyaml, f, indent=4, sort_keys=True)
+    def create_method(self, function_name, api_template_json, config, resource_name, permission_name):
+        method_template = api_template_json[METHOD]
+        method_name = METHOD + function_name
+        self.json_out[method_name] = method_template
+        method_uri = {"Fn::Join": ["", ["arn:aws:apigateway", ":", {"Ref": "AWS::Region"}, ":",
+                                        "lambda:path/2015-03-31/functions/arn:aws:lambda", ":",
+                                        {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":function:",
+                                        function_name, "/invocations"]]}
+        self.json_out[method_name]['Properties']['Integration']['Uri'] = method_uri
+        self.json_out[method_name]['Properties']['RestApiId'] = REST_API_ID
+        self.json_out[method_name]['Properties']['ResourceId'] = {"Ref": resource_name}
+        if (self.resource_path_exists):
+            self.json_out[method_name]['DependsOn'] = [function_name, permission_name]
+        else:
+            self.json_out[method_name]['DependsOn'] = [function_name, resource_name, permission_name]
+        self.json_out[method_name]['Properties']['HttpMethod'] = config['method']
+
+
+if __name__ == "__main__":
+    cformation = CloudFormationCreator()
+    cformation.create_json()

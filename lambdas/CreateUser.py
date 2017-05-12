@@ -1,6 +1,5 @@
 import json
 import boto3
-import decimal
 from boto3.dynamodb.conditions import Key, Attr
 
 """
@@ -11,46 +10,47 @@ JSON Format:
 """
 validDigits = [1, 2, 3, 4, 5, 6]
 
+
 def lambda_handler(event, context):
     output = {}
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('RestDB')
+    dynamo_db = boto3.resource('dynamodb')
+    table = dynamo_db.Table('PickPocketDB')
 
-    userId = event['userId']
+    user_id = event['userId']
     combination = event['combination']
     combination = json.loads(combination)
 
-    queryTable = table.query(KeyConditionExpression=Key('UserId').eq(userId))
+    query_table = table.query(KeyConditionExpression=Key('UserId').eq(user_id))
 
-    if (queryTable['Count'] != 0):
+    if query_table['Count'] != 0:
         output["response"] = "USER_EXISTS"
         return output
 
-    if (not validateCombination(combination)):
+    if not validate_combination(combination):
         output["response"] = "INVALID_COMBINATION_FORMAT"
         return output
 
     if 'displayName' in event:
         displayName = event['displayName']
     else:
-        displayName = userId
+        displayName = user_id
 
     combinationLength = len(combination)
 
-    response = table.put_item(
-       Item={
-            'UserId': userId,
+    table.put_item(
+        Item={
+            'UserId': user_id,
             'DisplayName': displayName,
             'Combination': combination,
             'CombinationLength': combinationLength
         }
     )
 
-    output = {}
-    output["response"] = "success"
+    output = {"response": "success"}
     return output
 
-def validateCombination(combination):
+
+def validate_combination(combination):
     try:
         for digit in combination:
             if int(digit) not in validDigits:

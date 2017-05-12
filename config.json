@@ -1,5 +1,5 @@
 {
-  "DbName":"RestTestDB",
+  "DbName":"PickPocketDB",
   "ApiName":"TestinThisOut",
   "functions" : [
     {
@@ -8,12 +8,12 @@
       "method":"GET"
     },
     {
-      "function":"CreateUserBasic.py",
+      "function":"CreateUser.py",
       "api_path":"users",
       "method":"POST"
     },
     {
-      "function":"PickLockUrl.py",
+      "function":"PickLock.py",
       "api_path":"pick/{victim}",
       "method":"POST"
     }

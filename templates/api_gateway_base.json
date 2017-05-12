@@ -1,0 +1,87 @@
+{
+  "RestApi": {
+    "Type": "AWS::ApiGateway::RestApi",
+    "Properties": {
+      "Name": "APIName"
+    }
+  },
+  "DB":{
+    "Type" : "AWS::DynamoDB::Table",
+    "Properties" : {
+      "AttributeDefinitions" : [
+        {
+          "AttributeName" : "UserId",
+          "AttributeType" : "S"
+        }],
+      "KeySchema" : [
+        {
+          "AttributeName" : "UserId",
+          "KeyType" : "HASH"
+        }],
+        "ProvisionedThroughput" : {
+          "ReadCapacityUnits" : "1",
+          "WriteCapacityUnits" : "1"
+        },
+      "TableName" : "RestDB"
+    }
+  },
+  "LambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+          "AssumeRolePolicyDocument":{
+          "Version": "2012-10-17",
+          "Statement": [ {
+             "Effect": "Allow",
+             "Principal":{"AWS":"*"},
+             "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": "/",
+        "Policies": [ {
+           "PolicyName": "lambdaroleCLOUDFORM",
+           "PolicyDocument": {
+              "Version" : "2012-10-17",
+              "Statement": [ {
+                 "Effect": "Allow",
+                 "Action": [
+                   "dynamodb:*",
+                   "cloudwatch:DeleteAlarms",
+                   "cloudwatch:DescribeAlarmHistory",
+                   "cloudwatch:DescribeAlarms",
+                   "cloudwatch:DescribeAlarmsForMetric",
+                   "cloudwatch:GetMetricStatistics",
+                   "cloudwatch:ListMetrics",
+                   "cloudwatch:PutMetricAlarm",
+                   "datapipeline:ActivatePipeline",
+                   "datapipeline:CreatePipeline",
+                   "datapipeline:DeletePipeline",
+                   "datapipeline:DescribeObjects",
+                   "datapipeline:DescribePipelines",
+                   "datapipeline:GetPipelineDefinition",
+                   "datapipeline:ListPipelines",
+                   "datapipeline:PutPipelineDefinition",
+                   "datapipeline:QueryObjects",
+                   "iam:ListRoles",
+                   "sns:CreateTopic",
+                   "sns:DeleteTopic",
+                   "sns:ListSubscriptions",
+                   "sns:ListSubscriptionsByTopic",
+                   "sns:ListTopics",
+                   "sns:Subscribe",
+                   "sns:Unsubscribe",
+                   "sns:SetTopicAttributes",
+                   "lambda:CreateFunction",
+                   "lambda:ListFunctions",
+                   "lambda:ListEventSourceMappings",
+                   "lambda:CreateEventSourceMapping",
+                   "lambda:DeleteEventSourceMapping",
+                   "lambda:GetFunctionConfiguration",
+                   "lambda:DeleteFunction"
+                 ],
+                 "Resource": "*"
+              } ]
+           }
+       } ]
+      }
+    }
+}

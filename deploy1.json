@@ -1,0 +1,219 @@
+{
+    "Resources": {
+        "CreateUserCLOUDFORM": {
+          "DependsOn": "LambdaRole",
+            "Properties": {
+                "Code": {
+                    "ZipFile": "import json\nimport boto3\nimport decimal\nfrom boto3.dynamodb.conditions import Key, Attr\n\n\"\"\"\nJSON Format:\n    \"userId\":\"JohnM\",\n    \"displayName\":\"John Mack\",\n    \"combination\":\"[1,2,3,4]\"\n\"\"\"\nvalidDigits = [1, 2, 3, 4, 5, 6]\n\ndef lambda_handler(event, context):\n    output = {}\n    dynamodb = boto3.resource('dynamodb')\n    table = dynamodb.Table('PickPocketDB')\n\n    userId = event['userId']\n    combination = event['combination']\n    combination = json.loads(combination)\n\n    queryTable = table.query(KeyConditionExpression=Key('UserId').eq(userId))\n\n    if (queryTable['Count'] != 0):\n        output[\"response\"] = \"USER_EXISTS\"\n        return output\n\n    if (not validateCombination(combination)):\n        output[\"response\"] = \"INVALID_COMBINATION_FORMAT\"\n        return output\n\n    if 'displayName' in event:\n        displayName = event['displayName']\n    else:\n        displayName = userId\n\n    combinationLength = len(combination)\n\n    response = table.put_item(\n       Item={\n            'UserId': userId,\n            'DisplayName': displayName,\n            'Combination': combination,\n            'CombinationLength': combinationLength\n        }\n    )\n\n    output = {}\n    output[\"response\"] = \"success\"\n    return output\n\ndef validateCombination(combination):\n    try:\n        for digit in combination:\n            if int(digit) not in validDigits:\n                print digit\n                return False\n        return True\n    except:\n        return False\n"
+                },
+                "FunctionName": "CreateUserCLOUDFORM",
+                "Handler": "index.lambda_handler",
+                "Role": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "arn:aws:iam::",
+                            {
+                                "Ref": "AWS::AccountId"
+                            },
+                            ":role/",
+                            {
+                              "Ref": "LambdaRole"
+                            }
+                        ]
+                    ]
+                },
+                "Runtime": "python2.7"
+            },
+            "Type": "AWS::Lambda::Function"
+        },
+        "LambdaRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument":{
+                "Version": "2012-10-17",
+                "Statement": [ {
+                   "Effect": "Allow",
+                   "Principal":{"AWS":"*"},
+                   "Action": [ "sts:AssumeRole" ]
+                } ]
+              },
+              "Path": "/",
+              "Policies": [ {
+                 "PolicyName": "lambdaroleCLOUDFORM",
+                 "PolicyDocument": {
+                    "Version" : "2012-10-17",
+                    "Statement": [ {
+                       "Effect": "Allow",
+                       "Action": [
+                         "dynamodb:*",
+                         "cloudwatch:DeleteAlarms",
+                         "cloudwatch:DescribeAlarmHistory",
+                         "cloudwatch:DescribeAlarms",
+                         "cloudwatch:DescribeAlarmsForMetric",
+                         "cloudwatch:GetMetricStatistics",
+                         "cloudwatch:ListMetrics",
+                         "cloudwatch:PutMetricAlarm",
+                         "datapipeline:ActivatePipeline",
+                         "datapipeline:CreatePipeline",
+                         "datapipeline:DeletePipeline",
+                         "datapipeline:DescribeObjects",
+                         "datapipeline:DescribePipelines",
+                         "datapipeline:GetPipelineDefinition",
+                         "datapipeline:ListPipelines",
+                         "datapipeline:PutPipelineDefinition",
+                         "datapipeline:QueryObjects",
+                         "iam:ListRoles",
+                         "sns:CreateTopic",
+                         "sns:DeleteTopic",
+                         "sns:ListSubscriptions",
+                         "sns:ListSubscriptionsByTopic",
+                         "sns:ListTopics",
+                         "sns:Subscribe",
+                         "sns:Unsubscribe",
+                         "sns:SetTopicAttributes",
+                         "lambda:CreateFunction",
+                         "lambda:ListFunctions",
+                         "lambda:ListEventSourceMappings",
+                         "lambda:CreateEventSourceMapping",
+                         "lambda:DeleteEventSourceMapping",
+                         "lambda:GetFunctionConfiguration",
+                         "lambda:DeleteFunction"
+                       ],
+                       "Resource": "*"
+                    } ]
+                 }
+             } ]
+            }
+          },
+          "DB": {
+              "Properties": {
+                  "AttributeDefinitions": [
+                      {
+                          "AttributeName": "UserId",
+                          "AttributeType": "S"
+                      }
+                  ],
+                  "KeySchema": [
+                      {
+                          "AttributeName": "UserId",
+                          "KeyType": "HASH"
+                      }
+                  ],
+                  "ProvisionedThroughput": {
+                      "ReadCapacityUnits": "1",
+                      "WriteCapacityUnits": "1"
+                  },
+                  "TableName": "PickPocketDB"
+              },
+              "Type": "AWS::DynamoDB::Table"
+          },
+          "RestApi": {
+            "Type": "AWS::ApiGateway::RestApi",
+            "Properties": {
+              "Name": "APIName"
+            }
+          },
+          "ResourceUsers": {
+              "DependsOn": "CreateUserCLOUDFORM",
+              "Properties": {
+                  "ParentId": {
+                      "Fn::GetAtt": [
+                          "RestApi",
+                          "RootResourceId"
+                      ]
+                  },
+                  "PathPart": "users",
+                  "RestApiId": {
+                      "Ref": "RestApi"
+                  }
+              },
+              "Type": "AWS::ApiGateway::Resource"
+          },
+          "MethodCreateUserCLOUDFORM": {
+              "DependsOn": [
+                  "CreateUserCLOUDFORM",
+                  "PermissionCreateUserCLOUDFORM"
+              ],
+              "Properties": {
+                  "AuthorizationType": "NONE",
+                  "HttpMethod": "POST",
+                  "Integration": {
+                      "IntegrationHttpMethod": "POST",
+                      "IntegrationResponses": [
+                          {
+                              "StatusCode": 200
+                          }
+                      ],
+                      "Type": "AWS",
+                      "Uri": {
+                          "Fn::Join": [
+                              "",
+                              [
+                                  "arn:aws:apigateway",
+                                  ":",
+                                  {
+                                      "Ref": "AWS::Region"
+                                  },
+                                  ":",
+                                  "lambda:path/2015-03-31/functions/arn:aws:lambda",
+                                  ":",
+                                  {
+                                      "Ref": "AWS::Region"
+                                  },
+                                  ":",
+                                  {
+                                      "Ref": "AWS::AccountId"
+                                  },
+                                  ":function:",
+                                  "CreateUserCLOUDFORM",
+                                  "/invocations"
+                              ]
+                          ]
+                      }
+                  },
+                  "MethodResponses": [
+                      {
+                          "StatusCode": 200
+                      }
+                  ],
+                  "ResourceId": {
+                      "Ref": "ResourceUsers"
+                  },
+                  "RestApiId": {
+                      "Ref": "RestApi"
+                  }
+              },
+              "Type": "AWS::ApiGateway::Method"
+          },
+          "PermissionCreateUserCLOUDFORM": {
+              "DependsOn": "CreateUserCLOUDFORM",
+              "Properties": {
+                  "Action": "lambda:InvokeFunction",
+                  "FunctionName": "CreateUserCLOUDFORM",
+                  "Principal": "apigateway.amazonaws.com",
+                  "SourceArn": {
+                      "Fn::Join": [
+                          "",
+                          [
+                              "arn:aws:execute-api:",
+                              {
+                                  "Ref": "AWS::Region"
+                              },
+                              ":",
+                              {
+                                  "Ref": "AWS::AccountId"
+                              },
+                              ":",
+                              {
+                                  "Ref": "RestApi"
+                              },
+                              "/*"
+                          ]
+                      ]
+                  }
+              },
+              "Type": "AWS::Lambda::Permission"
+          }
+        }
+      }

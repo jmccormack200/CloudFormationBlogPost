@@ -1,0 +1,15 @@
+{
+   "FunctionName": {
+     "DependsOn": "<LambdaPermission>",
+      "Properties": {
+         "Code": {
+            "ZipFile": null
+         },
+         "FunctionName": null,
+         "Handler": "index.lambda_handler",
+         "Role": "<ROLE:ARN>",
+         "Runtime": "python2.7"
+      },
+      "Type": "AWS::Lambda::Function"
+   }
+}

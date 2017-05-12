@@ -1,11 +1,8 @@
-import json
 import boto3
-from boto3.dynamodb.conditions import Key, Attr
 
 def lambda_handler(event, context):
-
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('PickPocketBlog')
+    dynamo_db = boto3.resource('dynamodb')
+    table = dynamo_db.Table('PickPocketDB')
 
     query = table.scan(AttributesToGet=[
         'UserId', 'CombinationLength'
